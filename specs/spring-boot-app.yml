@@ -1,0 +1,38 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: spring-boot-jpa-k8s
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: spring-boot-jpa-k8s
+  strategy:
+    type: RollingUpdate
+  template:
+    metadata:
+      name: spring-boot-jpa-k8s
+      labels:
+        app: spring-boot-jpa-k8s
+    spec:
+      containers:
+      - name: spring-boot-jpa-k8s
+        env:
+          - name: POSTGRES_USER             # variavel de nome padrão da image do Postgres
+            valueFrom:
+              configMapKeyRef:
+                name: postgres-config
+                key: postgres_user          # variaveis do ConfigMap
+          - name: POSTGRES_PASSWORD         # variavel de nome padrão da image do Postgres
+            valueFrom:
+              configMapKeyRef:
+                name: postgres-config
+                key: postgres_password      # variaveis do ConfigMap
+          - name: POSTGRES_HOST             # variavel de nome padrão da image do Postgres
+            valueFrom:
+              configMapKeyRef:
+                name: hostname-config
+                key: postgres_host        # Esta chave será atribuida o valor pelo comodando de criação do ConfigMap 
+        image: diegomacedocp/spring-boot-jpa-k8s:v1   # image que será pega na sua conta, ela será publicada pelo comando docker push antes de rodar esse yml
+        #image: <sua conta do Docker Hub>/spring-boot-jpa-k8s:v1

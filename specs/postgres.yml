@@ -1,0 +1,111 @@
+#Um ConfigMap é um objeto da API usado para armazenar dados não-confidenciais em 
+# pares chave-valor. Pods podem consumir ConfigMaps como variáveis de ambiente, argumentos 
+# de linha de comando ou como arquivos de configuração em um volume.
+
+#Um ConfigMap ajuda a desacoplar configurações vinculadas ao ambiente das imagens de contêiner, 
+# de modo a tornar aplicações mais facilmente portáveis.
+#Cuidado: O ConfigMap não oferece confidencialidade ou encriptação. Se os dados que você 
+# deseja armazenar são confidenciais, utilize Secret ao invés de um ConfigMap, ou utilize 
+# ferramentas adicionais (de terceiros) para manter seus dados privados. 
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-config
+  namespace: default
+data:
+  postgres_user: postgres
+  postgres_password: password
+
+# Separador de outra configuração  (spec)
+---
+
+
+# Uma_PersistentVolumeClaim_ (PVC) é uma requisição para armazenamento por um usuário. 
+# É similar a um Pod. Pods utilizam recursos do nó e PVCs utilizam recursos do PV. 
+# Pods podem solicitar níveis específicos de recursos (CPU e Memória). 
+# Claims podem solicitar tamanho e modos de acesso específicos (exemplo: montagem como ReadWriteOnce, 
+# ReadOnlyMany ou ReadWriteMany).
+# - ReadWriteOnce -- o volume pode ser montado como leitura-escrita por um nó único
+# - ReadOnlyMany -- o volume pode ser montado como somente-leitura por vários nós
+# - ReadWriteMany -- o volume pode ser montado como leitura-escrita por vários nós
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-pv-claim
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 32Gi
+      
+# Separador de outra configuração (spec)      
+---
+
+
+# Deployments
+# É uma implantação fornece atualizações declarativas para pods e ReplicaSets.
+#Você descreve um estado desejado em uma implantação e o controlador de implantação 
+# altera o estado real para o estado desejado em uma taxa controlada. Você pode definir 
+# implantações para criar novos ReplicaSets ou remover implantações existentes e adotar todos 
+# os seus recursos com novas implantações.
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      volumes:
+        - name: postgres-storage
+          persistentVolumeClaim:
+            claimName: postgres-pv-claim  #utilizando o PersistentVolumeClaim criado
+      containers:
+        - image: postgres:14.2         # nome da imagem a ser buscado no Docker Hub, mais a tag da versão 14.2
+          name: postgres
+          env:
+            - name: POSTGRES_USER
+              valueFrom:
+                configMapKeyRef:
+                  name: postgres-config   #utilizando o ConfigMap criado
+                  key: postgres_user
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                configMapKeyRef:
+                  name: postgres-config   #utilizando o ConfigMap criado
+                  key: postgres_password
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          ports:
+            - containerPort: 5432         #porta padrão do postgres
+              name: postgres
+          volumeMounts:
+            - name: postgres-storage
+              mountPath: /var/lib/postgresql/data   #local onde será salvo o volume no container
+              
+# Separador de outra configuração (spec)              
+---
+
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+spec:
+  type: ClusterIP       # ClusterIP será uma rede privada sem acesso externo somente será interno
+  ports:
+    # port expõe o serviço Kubernetes na porta especificada no cluster. Outros pods dentro do cluster podem se comunicar com este servidor na porta especificada
+    - port: 5432
+    # targetPort é a porta na qual o serviço enviará solicitações para a qual seu pod estará escutando. Seu aplicativo no contêiner também precisará estar escutando nesta porta.
+      targetPort: 5432
+  selector:
+    app: postgres       # Especificando qual deployment será utilizado esse serviço
